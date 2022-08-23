@@ -1,0 +1,73 @@
+
+services:
+  redis:
+    image: arm64v8/redis:alpine
+    container_name: redis
+    environment:
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      - ALLOW_EMPTY_PASSWORD=yes
+      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+    ports:
+      - '6379:6379'
+    networks:
+      - api_network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.5
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+    networks:
+      - api_network
+    ports:
+      - "9200:9200"
+
+  postgres_etl:
+    image: postgres:13
+    container_name: postgres_etl
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - envs/postgres.env
+    networks:
+      - api_network
+    ports:
+      - "5432:5432"
+
+  fastapi:
+    container_name: fastapi
+    build:
+      context: ./src
+      dockerfile: Dockerfile
+    env_file:
+      - envs/fastapi.env
+    networks:
+      - api_network
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - elasticsearch
+
+  etl:
+    container_name: etl
+    volumes:
+      - /Users/ramzich/Desktop/Async_API_sprint_1_thread_5-main/fastapi-solution/postgres_to_es/log:/opt/app/log
+#      - /Users/ramzich/Desktop/Async_API_sprint_1_thread_5-main/fastapi-solution/postgres_to_es/storage:/opt/app/storage
+    build:
+      context: ./postgres_to_es
+      dockerfile: Dockerfile
+    env_file:
+      - envs/etl.env
+    networks:
+      - api_network
+    depends_on:
+      - elasticsearch
+      - postgres_etl
+
+networks:
+  api_network:
+
+volumes:
+  postgres_data:
+  etl_logs:
